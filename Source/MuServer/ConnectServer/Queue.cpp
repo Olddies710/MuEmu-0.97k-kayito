@@ -15,7 +15,8 @@ void CQueue::ClearQueue()
 {
 	this->m_critical.lock();
 
-	this->m_QueueInfo.swap(std::queue<QUEUE_INFO>());
+	std::queue<QUEUE_INFO> empty;
+	this->m_QueueInfo.swap(empty);
 
 	this->m_critical.unlock();
 }
