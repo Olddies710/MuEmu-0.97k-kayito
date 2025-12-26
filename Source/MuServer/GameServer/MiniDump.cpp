@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "MiniDump.h"
 
+#ifdef _WIN32
+
 LPTOP_LEVEL_EXCEPTION_FILTER PreviousExceptionFilter = 0;
 
 LONG WINAPI DumpExceptionFilter(EXCEPTION_POINTERS* info)
@@ -49,3 +51,11 @@ void CMiniDump::Clean()
 {
 	SetUnhandledExceptionFilter(PreviousExceptionFilter);
 }
+
+#else
+
+void CMiniDump::Start() {}
+
+void CMiniDump::Clean() {}
+
+#endif

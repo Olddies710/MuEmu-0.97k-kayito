@@ -125,7 +125,7 @@ void CALLBACK QueueTimerCallback(PVOID lpParameter, BOOLEAN TimerOrWaitFired)
 
 	critical.lock();
 
-	switch (((int)lpParameter))
+	switch (static_cast<int>(reinterpret_cast<intptr_t>(lpParameter)))
 	{
 		case QUEUE_TIMER_MONSTER:
 		{

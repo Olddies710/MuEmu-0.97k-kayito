@@ -9,6 +9,7 @@
 #include "ScheduleManager.h"
 #include "ServerInfo.h"
 #include "Util.h"
+#include <algorithm>
 
 CGoldenArcherBingo gGoldenArcherBingo;
 

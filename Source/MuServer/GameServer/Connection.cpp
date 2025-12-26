@@ -19,7 +19,7 @@ CConnection::~CConnection()
 	this->Disconnect();
 }
 
-void CConnection::Init(HWND hwnd, char* name, void* function)
+void CConnection::Init(HWND hwnd, char* name, void (*function)(BYTE, BYTE*, int))
 {
 	this->m_hwnd = hwnd;
 
@@ -27,7 +27,7 @@ void CConnection::Init(HWND hwnd, char* name, void* function)
 
 	this->m_socket = socket(PF_INET, SOCK_STREAM, 0);
 
-	this->wsProtocolCore = (void(*)(BYTE, BYTE*, int))function;
+	this->wsProtocolCore = function;
 }
 
 bool CConnection::Connect(char* IpAddress, WORD port)

@@ -10,6 +10,7 @@
 #include "NpcTalk.h"
 #include "Protocol.h"
 #include "Util.h"
+#include <algorithm>
 
 CGoldenArcher gGoldenArcher;
 
@@ -605,7 +606,7 @@ void CGoldenArcher::CGGoldenArcherExchangeLuckyRecv(PMSG_GOLDEN_ARCHER_EXCHANGE_
 		return;
 	}
 
-	if (std::find(lpObj->RegisteredLuckyNumbers.begin(), lpObj->RegisteredLuckyNumbers.end(), lpMsg->LuckyNumber) == lpObj->RegisteredLuckyNumbers.end())
+	if (std::find(lpObj->RegisteredLuckyNumbers.begin(), lpObj->RegisteredLuckyNumbers.end(), std::string(lpMsg->LuckyNumber)) == lpObj->RegisteredLuckyNumbers.end())
 	{
 		this->GCGoldenArcherExchangeLuckySend(aIndex, 3);
 
