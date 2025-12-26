@@ -348,7 +348,7 @@ CEffect* CEffectManager::GetEffectByGroup(LPOBJ lpObj, int group)
 
 bool CEffectManager::CheckEffect(LPOBJ lpObj, int index)
 {
-	if (this->GetEffect(lpObj, index) != false)
+	if (this->GetEffect(lpObj, index) != nullptr)
 	{
 		return true;
 	}
@@ -358,7 +358,7 @@ bool CEffectManager::CheckEffect(LPOBJ lpObj, int index)
 
 bool CEffectManager::CheckEffectByGroup(LPOBJ lpObj, int group)
 {
-	if (this->GetEffectByGroup(lpObj, group) != false)
+	if (this->GetEffectByGroup(lpObj, group) != nullptr)
 	{
 		return true;
 	}

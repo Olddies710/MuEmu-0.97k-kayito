@@ -55,6 +55,8 @@ typedef long LPARAM;
 typedef long LRESULT;
 typedef intptr_t INT_PTR;
 typedef int errno_t;
+typedef unsigned long long ULONGLONG;
+typedef void VOID;
 
 #ifndef TRUE
 #define TRUE 1
@@ -79,6 +81,10 @@ struct WinHandle
 		File,
 		Thread,
 		Semaphore,
+		Mutex,
+		Event,
+		TimerQueue,
+		Timer,
 		Event,
 		Unknown
 	};
@@ -155,6 +161,7 @@ typedef struct _WSABUF
 
 typedef int (CALLBACK* LPCONDITIONPROC)(LPWSABUF, LPWSABUF, LPQOS, LPQOS, LPWSABUF, LPWSABUF, GROUP*, DWORD_PTR);
 typedef void* LPWSAOVERLAPPED_COMPLETION_ROUTINE;
+typedef VOID(CALLBACK* WAITORTIMERCALLBACK)(PVOID, BOOLEAN);
 
 typedef struct tagRECT
 {
@@ -318,12 +325,20 @@ constexpr int SOCKET_ERROR = -1;
 #define ERROR_NETNAME_DELETED 64
 #endif
 
+#ifndef ERROR_ALREADY_EXISTS
+#define ERROR_ALREADY_EXISTS 183
+#endif
+
 #ifndef ERROR_CONNECTION_ABORTED
 #define ERROR_CONNECTION_ABORTED 1236
 #endif
 
 #ifndef ERROR_OPERATION_ABORTED
 #define ERROR_OPERATION_ABORTED 995
+#endif
+
+#ifndef WT_EXECUTEINTIMERTHREAD
+#define WT_EXECUTEINTIMERTHREAD 0x00000020
 #endif
 
 #ifndef MB_OK
@@ -498,10 +513,49 @@ constexpr int SOCKET_ERROR = -1;
 #define WM_COMMAND 0x0111
 #endif
 
+#ifndef LB_ADDSTRING
+#define LB_ADDSTRING 0x0180
+#endif
+
+#ifndef LB_DELETESTRING
+#define LB_DELETESTRING 0x0182
+#endif
+
+#ifndef LB_RESETCONTENT
+#define LB_RESETCONTENT 0x0184
+#endif
+
+#ifndef LB_GETCURSEL
+#define LB_GETCURSEL 0x0188
+#endif
+
+#ifndef LB_GETITEMDATA
+#define LB_GETITEMDATA 0x0199
+#endif
+
+#ifndef LB_SETITEMDATA
+#define LB_SETITEMDATA 0x019A
+#endif
+
 #ifndef LOWORD
 #define LOWORD(l) (static_cast<WORD>((static_cast<DWORD_PTR>(l)) & 0xFFFF))
 #endif
 
+#ifndef HIWORD
+#define HIWORD(l) (static_cast<WORD>(((static_cast<DWORD_PTR>(l)) >> 16) & 0xFFFF))
+#endif
+
+#ifndef LOBYTE
+#define LOBYTE(w) (static_cast<BYTE>((static_cast<WORD>(w)) & 0xFF))
+#endif
+
+#ifndef HIBYTE
+#define HIBYTE(w) (static_cast<BYTE>(((static_cast<WORD>(w)) >> 8) & 0xFF))
+#endif
+
+#ifndef LBN_SELCHANGE
+#define LBN_SELCHANGE 1
+#endif
 typedef LRESULT(CALLBACK* WNDPROC)(HWND, UINT, WPARAM, LPARAM);
 typedef INT_PTR(CALLBACK* DLGPROC)(HWND, UINT, WPARAM, LPARAM);
 
@@ -658,6 +712,26 @@ inline LRESULT DispatchMessageA(const MSG*)
 }
 
 inline BOOL SetWindowText(HWND, const char*)
+{
+	return TRUE;
+}
+
+inline HWND SetFocus(HWND)
+{
+	return nullptr;
+}
+
+inline LRESULT SendMessage(HWND, UINT, WPARAM, LPARAM)
+{
+	return 0;
+}
+
+inline HWND GetDlgItem(HWND, int)
+{
+	return nullptr;
+}
+
+inline BOOL SetDlgItemText(HWND, int, const char*)
 {
 	return TRUE;
 }
@@ -924,6 +998,442 @@ inline int sprintf_s(char* buffer, size_t, const char* format, ...)
 	va_end(args);
 	return result;
 }
+
+inline int vsprintf_s(char* buffer, const char* format, va_list args)
+{
+	return vsprintf(buffer, format, args);
+}
+
+inline int fopen_s(FILE** file, const char* filename, const char* mode)
+{
+	if (!file)
+	{
+		return EINVAL;
+	}
+
+	*file = std::fopen(filename, mode);
+	return (*file) ? 0 : errno;
+}
+
+inline int strncpy_s(char* destination, size_t destinationSize, const char* source, size_t count)
+{
+	if (!destination || destinationSize == 0)
+	{
+		return -1;
+	}
+
+	if (!source)
+	{
+		destination[0] = '\0';
+		return -1;
+	}
+
+	size_t toCopy = (count < destinationSize - 1) ? count : (destinationSize - 1);
+	std::strncpy(destination, source, toCopy);
+	destination[toCopy] = '\0';
+	return 0;
+}
+
+inline BOOL CreateDirectory(const char* path, void*)
+{
+	if (!path)
+	{
+		return FALSE;
+	}
+
+	if (mkdir(path, 0755) == 0 || errno == EEXIST)
+	{
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
+inline void* GlobalAlloc(UINT flags, size_t bytes)
+{
+	if (flags & GPTR)
+	{
+		return std::calloc(1, bytes);
+	}
+
+	return std::malloc(bytes);
+}
+
+inline void GlobalFree(void* memory)
+{
+	std::free(memory);
+}
+
+inline HANDLE CreateFile(const char* filename, DWORD desiredAccess, DWORD, void*, DWORD creationDisposition, DWORD, void*)
+{
+	if (!filename)
+	{
+		return INVALID_HANDLE_VALUE;
+	}
+
+	bool wantRead = (desiredAccess & GENERIC_READ) != 0;
+	bool wantWrite = (desiredAccess & GENERIC_WRITE) != 0;
+	const char* mode = "rb";
+
+	if (wantWrite)
+	{
+		if (creationDisposition == CREATE_ALWAYS)
+		{
+			mode = wantRead ? "w+b" : "wb";
+		}
+		else if (creationDisposition == OPEN_ALWAYS)
+		{
+			mode = wantRead ? "a+b" : "ab";
+		}
+		else
+		{
+			mode = wantRead ? "r+b" : "ab";
+		}
+	}
+
+	FILE* file = std::fopen(filename, mode);
+	if (!file)
+	{
+		return INVALID_HANDLE_VALUE;
+	}
+
+	auto* handle = new WinHandle();
+	handle->type = WinHandle::Type::File;
+	handle->handle = file;
+	return handle;
+}
+
+inline BOOL ReadFile(HANDLE handle, void* buffer, DWORD bytesToRead, DWORD* bytesRead, void*)
+{
+	if (!handle || handle->type != WinHandle::Type::File || !buffer)
+	{
+		return FALSE;
+	}
+
+	auto* file = static_cast<FILE*>(handle->handle);
+	size_t count = std::fread(buffer, 1, bytesToRead, file);
+	if (bytesRead)
+	{
+		*bytesRead = static_cast<DWORD>(count);
+	}
+	return TRUE;
+}
+
+inline BOOL WriteFile(HANDLE handle, const void* buffer, DWORD bytesToWrite, DWORD* bytesWritten, void*)
+{
+	if (!handle || handle->type != WinHandle::Type::File || !buffer)
+	{
+		return FALSE;
+	}
+
+	auto* file = static_cast<FILE*>(handle->handle);
+	size_t count = std::fwrite(buffer, 1, bytesToWrite, file);
+	if (bytesWritten)
+	{
+		*bytesWritten = static_cast<DWORD>(count);
+	}
+	return count == bytesToWrite;
+}
+
+inline DWORD SetFilePointer(HANDLE handle, LONG distance, LONG*, DWORD moveMethod)
+{
+	if (!handle || handle->type != WinHandle::Type::File)
+	{
+		return INVALID_SET_FILE_POINTER;
+	}
+
+	auto* file = static_cast<FILE*>(handle->handle);
+	if (std::fseek(file, distance, static_cast<int>(moveMethod)) != 0)
+	{
+		return INVALID_SET_FILE_POINTER;
+	}
+
+	long pos = std::ftell(file);
+	return (pos < 0) ? INVALID_SET_FILE_POINTER : static_cast<DWORD>(pos);
+}
+
+inline BOOL CloseHandle(HANDLE handle)
+{
+	if (!handle)
+	{
+		return FALSE;
+	}
+
+	switch (handle->type)
+	{
+	case WinHandle::Type::File:
+		if (handle->handle)
+		{
+			std::fclose(static_cast<FILE*>(handle->handle));
+		}
+		break;
+	case WinHandle::Type::Thread:
+		if (handle->handle)
+		{
+			auto* thread = static_cast<pthread_t*>(handle->handle);
+			pthread_join(*thread, nullptr);
+			delete thread;
+		}
+		break;
+	case WinHandle::Type::Semaphore:
+		if (handle->handle)
+		{
+			auto* semaphore = static_cast<sem_t*>(handle->handle);
+			sem_destroy(semaphore);
+			delete semaphore;
+		}
+		break;
+	case WinHandle::Type::Mutex:
+		if (handle->handle)
+		{
+			auto* mutex = static_cast<pthread_mutex_t*>(handle->handle);
+			pthread_mutex_destroy(mutex);
+			delete mutex;
+		}
+		break;
+	case WinHandle::Type::Event:
+	case WinHandle::Type::TimerQueue:
+	case WinHandle::Type::Timer:
+		break;
+	default:
+		break;
+	}
+
+	delete handle;
+	return TRUE;
+}
+
+inline DWORD GetLastError()
+{
+	return static_cast<DWORD>(errno);
+}
+
+typedef DWORD(WINAPI* LPTHREAD_START_ROUTINE)(LPVOID);
+
+struct ThreadStartContext
+{
+	LPTHREAD_START_ROUTINE routine;
+	LPVOID param;
+};
+
+inline void* ThreadStartThunk(void* param)
+{
+	auto* ctx = static_cast<ThreadStartContext*>(param);
+	DWORD result = ctx->routine(ctx->param);
+	delete ctx;
+	return reinterpret_cast<void*>(static_cast<uintptr_t>(result));
+}
+
+inline HANDLE CreateThread(void*, size_t, LPTHREAD_START_ROUTINE routine, LPVOID param, DWORD, DWORD*)
+{
+	if (!routine)
+	{
+		errno = EINVAL;
+		return nullptr;
+	}
+
+	auto* thread = new pthread_t();
+	auto* ctx = new ThreadStartContext{ routine, param };
+	if (pthread_create(thread, nullptr, ThreadStartThunk, ctx) != 0)
+	{
+		delete thread;
+		delete ctx;
+		return nullptr;
+	}
+
+	auto* handle = new WinHandle();
+	handle->type = WinHandle::Type::Thread;
+	handle->handle = thread;
+	return handle;
+}
+
+inline BOOL SetThreadPriority(HANDLE, int)
+{
+	return TRUE;
+}
+
+inline BOOL TerminateThread(HANDLE handle, DWORD)
+{
+	if (!handle || handle->type != WinHandle::Type::Thread || !handle->handle)
+	{
+		return FALSE;
+	}
+
+	auto* thread = static_cast<pthread_t*>(handle->handle);
+	return pthread_cancel(*thread) == 0 ? TRUE : FALSE;
+}
+
+inline HANDLE CreateSemaphore(void*, LONG initialCount, LONG, const char*)
+{
+	auto* semaphore = new sem_t();
+	if (sem_init(semaphore, 0, static_cast<unsigned int>(initialCount)) != 0)
+	{
+		delete semaphore;
+		return nullptr;
+	}
+
+	auto* handle = new WinHandle();
+	handle->type = WinHandle::Type::Semaphore;
+	handle->handle = semaphore;
+	return handle;
+}
+
+inline HANDLE CreateMutex(void*, BOOL, const char*)
+{
+	auto* mutex = new pthread_mutex_t();
+	if (pthread_mutex_init(mutex, nullptr) != 0)
+	{
+		delete mutex;
+		return nullptr;
+	}
+
+	errno = 0;
+
+	auto* handle = new WinHandle();
+	handle->type = WinHandle::Type::Mutex;
+	handle->handle = mutex;
+	return handle;
+}
+
+inline BOOL ReleaseSemaphore(HANDLE handle, LONG releaseCount, LONG*)
+{
+	if (!handle || handle->type != WinHandle::Type::Semaphore || !handle->handle)
+	{
+		return FALSE;
+	}
+
+	auto* semaphore = static_cast<sem_t*>(handle->handle);
+	for (LONG i = 0; i < releaseCount; ++i)
+	{
+		sem_post(semaphore);
+	}
+	return TRUE;
+}
+
+inline HANDLE CreateTimerQueue()
+{
+	auto* handle = new WinHandle();
+	handle->type = WinHandle::Type::TimerQueue;
+	return handle;
+}
+
+inline BOOL DeleteTimerQueue(HANDLE handle)
+{
+	return CloseHandle(handle);
+}
+
+inline BOOL CreateTimerQueueTimer(HANDLE* timerHandle, HANDLE, WAITORTIMERCALLBACK, PVOID, DWORD, DWORD, DWORD)
+{
+	if (!timerHandle)
+	{
+		return FALSE;
+	}
+
+	auto* handle = new WinHandle();
+	handle->type = WinHandle::Type::Timer;
+	*timerHandle = handle;
+	return TRUE;
+}
+
+inline BOOL DeleteTimerQueueTimer(HANDLE, HANDLE timerHandle, HANDLE)
+{
+	return CloseHandle(timerHandle);
+}
+
+inline DWORD WaitForSingleObject(HANDLE handle, DWORD milliseconds)
+{
+	if (!handle)
+	{
+		return WAIT_FAILED;
+	}
+
+	if (handle->type == WinHandle::Type::Semaphore && handle->handle)
+	{
+		auto* semaphore = static_cast<sem_t*>(handle->handle);
+		if (milliseconds == INFINITE)
+		{
+			return sem_wait(semaphore) == 0 ? WAIT_OBJECT_0 : WAIT_FAILED;
+		}
+
+		struct timespec ts {};
+		clock_gettime(CLOCK_REALTIME, &ts);
+		ts.tv_sec += milliseconds / 1000;
+		ts.tv_nsec += static_cast<long>((milliseconds % 1000) * 1000000);
+		if (ts.tv_nsec >= 1000000000)
+		{
+			ts.tv_sec += 1;
+			ts.tv_nsec -= 1000000000;
+		}
+		int result = sem_timedwait(semaphore, &ts);
+		if (result == 0)
+		{
+			return WAIT_OBJECT_0;
+		}
+		if (errno == ETIMEDOUT)
+		{
+			return WAIT_TIMEOUT;
+		}
+		return WAIT_FAILED;
+	}
+
+	if (handle->type == WinHandle::Type::Mutex && handle->handle)
+	{
+		auto* mutex = static_cast<pthread_mutex_t*>(handle->handle);
+		if (milliseconds == INFINITE)
+		{
+			return pthread_mutex_lock(mutex) == 0 ? WAIT_OBJECT_0 : WAIT_FAILED;
+		}
+
+		if (pthread_mutex_trylock(mutex) == 0)
+		{
+			return WAIT_OBJECT_0;
+		}
+
+		return WAIT_TIMEOUT;
+	}
+
+	if (handle->type == WinHandle::Type::Thread && handle->handle)
+	{
+		auto* thread = static_cast<pthread_t*>(handle->handle);
+		return pthread_join(*thread, nullptr) == 0 ? WAIT_OBJECT_0 : WAIT_FAILED;
+	}
+
+	return WAIT_FAILED;
+}
+
+struct WSANETWORKEVENTS
+{
+	long lNetworkEvents;
+};
+
+using WSAEVENT = HANDLE;
+
+inline int WSAStartup(WORD, void*)
+{
+	return 0;
+}
+
+inline int WSACleanup()
+{
+	return 0;
+}
+
+inline SOCKET WSASocketW(int af, int type, int protocol, void*, unsigned int, DWORD)
+{
+	return socket(af, type, protocol);
+}
+
+#ifndef WSASocketW
+#define WSASocketW(af, type, protocol, lpProtocolInfo, g, flags) socket((af), (type), (protocol))
+#endif
+
+inline WSAEVENT WSACreateEvent()
+{
+	auto* handle = new WinHandle();
+	handle->type = WinHandle::Type::Event;
+	return handle;
+}
+
 
 inline int vsprintf_s(char* buffer, const char* format, va_list args)
 {
@@ -1982,6 +2492,21 @@ inline DWORD WSAWaitForMultipleEvents(DWORD eventCount, const WSAEVENT* events, 
 		return WSA_WAIT_TIMEOUT;
 	}
 
+	long networkEvents = 0;
+	if (pfd.revents & (POLLIN | POLLPRI))
+	{
+		networkEvents |= FD_READ;
+	}
+	if (pfd.revents & POLLOUT)
+	{
+		networkEvents |= FD_WRITE;
+	}
+	if (pfd.revents & (POLLHUP | POLLERR))
+	{
+		networkEvents |= FD_CLOSE;
+	}
+
+	eventHandle->lastEvents = networkEvents;
 	long events = 0;
 	if (pfd.revents & (POLLIN | POLLPRI))
 	{
@@ -2010,6 +2535,19 @@ inline int WSAEnumNetworkEvents(SOCKET, WSAEVENT eventHandle, WSANETWORKEVENTS* 
 	events->lNetworkEvents = eventHandle->lastEvents;
 	eventHandle->lastEvents = 0;
 	return 0;
+}
+
+inline SOCKET WSAAccept(SOCKET socket, sockaddr* addr, int* addrlen, LPCONDITIONPROC, DWORD_PTR)
+{
+	if (!addrlen)
+	{
+		return accept(socket, addr, nullptr);
+	}
+
+	socklen_t length = static_cast<socklen_t>(*addrlen);
+	SOCKET result = accept(socket, addr, &length);
+	*addrlen = static_cast<int>(length);
+	return result;
 }
 
 #ifndef WSAEWOULDBLOCK
