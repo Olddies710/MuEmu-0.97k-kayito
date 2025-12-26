@@ -60,7 +60,7 @@ private:
 
 	char m_pass[32];
 
-	SQLINTEGER m_RowCount;
+	SQLLEN m_RowCount;
 
 	SQLSMALLINT m_ColCount;
 
@@ -68,9 +68,9 @@ private:
 
 	char m_SQLData[MAX_COLUMNS][8192];
 
-	SQLINTEGER m_SQLDataLen[MAX_COLUMNS];
+	SQLLEN m_SQLDataLen[MAX_COLUMNS];
 
-	SQLINTEGER m_SQLBindValue[MAX_COLUMNS];
+	SQLLEN m_SQLBindValue[MAX_COLUMNS];
 };
 
 extern CQueryManager gQueryManager;

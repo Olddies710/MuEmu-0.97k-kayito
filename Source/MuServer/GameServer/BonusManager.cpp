@@ -9,7 +9,11 @@
 #include "Monster.h"
 #include "Notice.h"
 #include "ObjectManager.h"
+#ifdef _WIN32
 #include "resource.h"
+#else
+#define ID_STARTBONUS 41000
+#endif
 #include "ScheduleManager.h"
 #include "ServerInfo.h"
 #include "Util.h"
