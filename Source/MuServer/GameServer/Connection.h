@@ -12,7 +12,7 @@ public:
 
 	virtual ~CConnection();
 
-	void Init(HWND hwnd, char* name, void* function);
+	void Init(HWND hwnd, char* name, void (*function)(BYTE, BYTE*, int));
 
 	bool Connect(char* IpAddress, WORD port);
 

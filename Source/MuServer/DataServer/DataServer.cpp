@@ -1,5 +1,19 @@
 #include "stdafx.h"
+#ifdef _WIN32
 #include "resource.h"
+#else
+#define IDI_ICON_NORMAL 101
+#define IDI_ICON_SMALL 102
+#define IDR_MENU 103
+#define IDD_DIALOG_ABOUT 104
+#define ID_EXIT 40001
+#define ID_ABOUT 40002
+#define ID_CONSOLE_SHOW 40003
+#define ID_CONSOLE_CLEAR 40004
+#define ID_CONSOLE_GENERAL 40005
+#define ID_CONSOLE_TCPRECV 40006
+#define ID_CONSOLE_TCPSEND 40007
+#endif
 #include "DataServer.h"
 #include "AllowableIpList.h"
 #include "BadSyntax.h"

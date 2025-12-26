@@ -5,7 +5,11 @@
 #include "Monster.h"
 #include "MonsterSetBase.h"
 #include "Notice.h"
+#ifdef _WIN32
 #include "resource.h"
+#else
+#define ID_STARTINVASION 42000
+#endif
 #include "ScheduleManager.h"
 #include "ServerInfo.h"
 #include "Util.h"
