@@ -20,6 +20,7 @@ typedef unsigned __int64 QWORD;
 
 #include <arpa/inet.h>
 #include <cerrno>
+#include <cstring>
 #include <cstdint>
 #include <ctime>
 #include <netdb.h>
@@ -69,6 +70,7 @@ typedef void* HICON;
 typedef void* HCURSOR;
 typedef void* HBRUSH;
 typedef void* HMENU;
+typedef void* HFONT;
 typedef void* LPVOID;
 typedef const char* LPCSTR;
 typedef char* LPSTR;
@@ -77,6 +79,14 @@ typedef char* LPTSTR;
 typedef const wchar_t* LPCWSTR;
 typedef wchar_t* LPWSTR;
 typedef char TCHAR;
+
+typedef struct tagRECT
+{
+	LONG left;
+	LONG top;
+	LONG right;
+	LONG bottom;
+} RECT;
 
 #ifndef MAX_PATH
 #define MAX_PATH 260
